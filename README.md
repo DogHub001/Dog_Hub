@@ -1,6 +1,7 @@
 -- ============================================
--- DOG HUB V13 - VERSÃO ENXUTA (Delta Mobile)
--- Mouse Fictício + Auto Farm + Hitbox + Speed
+-- DOG HUB V14 - CORRIGIDO PARA DELTA MOBILE
+-- Baseado em Redz Hub + Atherhub
+-- Teleport + Click funcionando
 -- ============================================
 
 local Players = game:GetService("Players")
@@ -8,18 +9,22 @@ local LP = Players.LocalPlayer
 local UIS = game:GetService("UserInputService")
 local RS = game:GetService("RunService")
 local VIM = game:GetService("VirtualInputManager")
+local TS = game:GetService("TweenService")  -- Usar Tween ao invés de BodyVelocity
 
 -- ========== VARIAVEIS ==========
 local AutoFarmOn = false
 local HitboxOn = false
 local SpeedOn = false
+local FlyOn = false
 local NivelAtual = 0
 local TamanhoHitbox = 18
 local WalkSpeed = 50
 local JumpPower = 80
+local LastAttack = 0
 
--- ========== MOUSE FICTÍCIO (O SEGREDO!) ==========
+-- ========== MOUSE FICTÍCIO (MULTIPLOS MÉTODOS) ==========
 local function ClickMouse()
+    -- Método 1: VirtualUser (funciona na maioria)
     pcall(function()
         local vu = game:GetService("VirtualUser")
         vu:Button1Down(Vector2.new(500, 800), Enum.UserInputType.MouseButton1)
@@ -27,19 +32,75 @@ local function ClickMouse()
         vu:Button1Up(Vector2.new(500, 800), Enum.UserInputType.MouseButton1)
     end)
     
+    -- Método 2: VirtualInputManager
     pcall(function()
         VIM:SendMouseButtonEvent(500, 800, 0, true, "Left", false)
         task.wait(0.05)
         VIM:SendMouseButtonEvent(500, 800, 0, false, "Left", false)
     end)
+    
+    -- Método 3: Click em posições diferentes (botões do Blox Fruits)
+    local posicoes = {Vector2.new(400, 700), Vector2.new(600, 700), Vector2.new(500, 750)}
+    for _, pos in pairs(posicoes) do
+        pcall(function()
+            VIM:SendMouseButtonEvent(pos.X, pos.Y, 0, true, "Left", false)
+            task.wait(0.02)
+            VIM:SendMouseButtonEvent(pos.X, pos.Y, 0, false, "Left", false)
+        end)
+    end
 end
 
--- ========== CLICK DE ATAQUE ==========
+-- ========== CLICK DE ATAQUE (COM DELAY) ==========
 local function Atacar()
-    pcall(function() VIM:SendKeyEvent(true, "Q", false, game) VIM:SendKeyEvent(false, "Q", false, game) end)
-    pcall(function() VIM:SendKeyEvent(true, "E", false, game) VIM:SendKeyEvent(false, "E", false, game) end)
-    pcall(function() VIM:SendKeyEvent(true, "R", false, game) VIM:SendKeyEvent(false, "R", false, game) end)
+    local now = tick()
+    if now - LastAttack < 0.1 then return end
+    LastAttack = now
+    
+    -- Teclas de ataque
+    pcall(function() VIM:SendKeyEvent(true, "Q", false, game) task.wait(0.05) VIM:SendKeyEvent(false, "Q", false, game) end)
+    pcall(function() VIM:SendKeyEvent(true, "E", false, game) task.wait(0.05) VIM:SendKeyEvent(false, "E", false, game) end)
+    pcall(function() VIM:SendKeyEvent(true, "R", false, game) task.wait(0.05) VIM:SendKeyEvent(false, "R", false, game) end)
+    
+    -- Mouse click
     ClickMouse()
+end
+
+-- ========== FUNÇÃO DE TELEPORT (INSTANTÂNEO) ==========
+local function Teleport(pos)
+    local char = LP.Character
+    if not char then return end
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    if hrp then
+        -- Desativa colisão temporariamente
+        for _, v in pairs(char:GetChildren()) do
+            if v:IsA("BasePart") then
+                v.CanCollide = false
+            end
+        end
+        hrp.CFrame = pos
+        task.wait(0.1)
+        for _, v in pairs(char:GetChildren()) do
+            if v:IsA("BasePart") then
+                v.CanCollide = true
+            end
+        end
+    end
+end
+
+-- ========== TWEEN TELEPORT (MOVER SUAVEMENTE) ==========
+local function TweenToPosition(targetPos)
+    local char = LP.Character
+    if not char then return end
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    if not hrp then return end
+    
+    local tweenInfo = TweenInfo.new(
+        (hrp.Position - targetPos.Position).Magnitude / 150,
+        Enum.EasingStyle.Linear
+    )
+    local tween = TS:Create(hrp, tweenInfo, {CFrame = targetPos})
+    tween:Play()
+    tween.Completed:Wait()
 end
 
 -- ========== PEGAR NÍVEL ==========
@@ -55,65 +116,72 @@ local function GetLevel()
     return NivelAtual
 end
 
--- ========== NPCs POR NÍVEL ==========
-local function GetNPCByLevel()
+-- ========== NPCs POR NÍVEL (TABELA COMPLETA) ==========
+local function GetNPCData()
     local lvl = GetLevel()
-    if lvl <= 10 then return "Bandit", CFrame.new(-1185, 4, 1350)
-    elseif lvl <= 20 then return "Gorilla", CFrame.new(-1250, 8, 380)
-    elseif lvl <= 40 then return "Pirate", CFrame.new(-1110, 6, 1000)
-    elseif lvl <= 60 then return "Brute", CFrame.new(-1110, 6, 1000)
-    elseif lvl <= 75 then return "Desert Bandit", CFrame.new(1350, 12, -650)
-    elseif lvl <= 90 then return "Desert Officer", CFrame.new(1350, 12, -650)
-    elseif lvl <= 100 then return "Snow Bandit", CFrame.new(-4500, 85, -800)
-    elseif lvl <= 120 then return "Snowman", CFrame.new(-4500, 85, -800)
-    elseif lvl <= 130 then return "Chief Petty Officer", CFrame.new(-5600, 45, -2800)
-    elseif lvl <= 175 then return "Sky Bandit", CFrame.new(-4850, 750, -2000)
-    elseif lvl <= 190 then return "Dark Master", CFrame.new(-4850, 750, -2000)
-    elseif lvl <= 210 then return "Prisoner", CFrame.new(-5250, 280, -2550)
-    elseif lvl <= 250 then return "Dangerous Prisoner", CFrame.new(-5250, 280, -2550)
-    elseif lvl <= 275 then return "Toga Warrior", CFrame.new(1350, 8, 850)
-    elseif lvl <= 300 then return "Gladiator", CFrame.new(1350, 8, 850)
-    elseif lvl <= 325 then return "Military Soldier", CFrame.new(-5300, 45, -1200)
-    elseif lvl <= 350 then return "Military Spy", CFrame.new(-5300, 45, -1200)
-    elseif lvl <= 400 then return "Fishman Warrior", CFrame.new(3600, 60, 3100)
-    elseif lvl <= 450 then return "Fishman Commando", CFrame.new(3600, 60, 3100)
-    elseif lvl <= 500 then return "God's Guard", CFrame.new(5250, 710, -3650)
-    elseif lvl <= 575 then return "Royal Soldier", CFrame.new(5250, 710, -3650)
-    else return "Cyborg", CFrame.new(1340, 16, -1570)
+    local npcData = {
+        {max=10, nome="Bandit", pos=CFrame.new(-1185, 4, 1350)},
+        {max=20, nome="Gorilla", pos=CFrame.new(-1250, 8, 380)},
+        {max=40, nome="Pirate", pos=CFrame.new(-1110, 6, 1000)},
+        {max=60, nome="Brute", pos=CFrame.new(-1110, 6, 1000)},
+        {max=75, nome="Desert Bandit", pos=CFrame.new(1350, 12, -650)},
+        {max=90, nome="Desert Officer", pos=CFrame.new(1350, 12, -650)},
+        {max=100, nome="Snow Bandit", pos=CFrame.new(-4500, 85, -800)},
+        {max=120, nome="Snowman", pos=CFrame.new(-4500, 85, -800)},
+        {max=130, nome="Chief Petty Officer", pos=CFrame.new(-5600, 45, -2800)},
+        {max=175, nome="Sky Bandit", pos=CFrame.new(-4850, 750, -2000)},
+        {max=190, nome="Dark Master", pos=CFrame.new(-4850, 750, -2000)},
+        {max=210, nome="Prisoner", pos=CFrame.new(-5250, 280, -2550)},
+        {max=250, nome="Dangerous Prisoner", pos=CFrame.new(-5250, 280, -2550)},
+        {max=275, nome="Toga Warrior", pos=CFrame.new(1350, 8, 850)},
+        {max=300, nome="Gladiator", pos=CFrame.new(1350, 8, 850)},
+        {max=325, nome="Military Soldier", pos=CFrame.new(-5300, 45, -1200)},
+        {max=350, nome="Military Spy", pos=CFrame.new(-5300, 45, -1200)},
+        {max=400, nome="Fishman Warrior", pos=CFrame.new(3600, 60, 3100)},
+        {max=450, nome="Fishman Commando", pos=CFrame.new(3600, 60, 3100)},
+        {max=500, nome="God's Guard", pos=CFrame.new(5250, 710, -3650)},
+        {max=575, nome="Royal Soldier", pos=CFrame.new(5250, 710, -3650)},
+        {max=999, nome="Cyborg", pos=CFrame.new(1340, 16, -1570)}
+    }
+    
+    for _, data in ipairs(npcData) do
+        if lvl <= data.max then
+            return data.nome, data.pos
+        end
     end
-end
-
--- ========== TELEPORT ==========
-local function Teleport(pos)
-    local char = LP.Character
-    if char and char:FindFirstChild("HumanoidRootPart") then
-        char.HumanoidRootPart.CFrame = pos
-    end
+    return "Cyborg", CFrame.new(1340, 16, -1570)
 end
 
 -- ========== ACEITAR MISSÃO ==========
 local function AceitarQuest()
-    pcall(function() VIM:SendKeyEvent(true, "E", false, game) wait(0.1) VIM:SendKeyEvent(false, "E", false, game) end)
-    ClickMouse()
-    wait(0.5)
+    -- Tenta interagir com o NPC da quest
+    for i = 1, 3 do
+        pcall(function() VIM:SendKeyEvent(true, "E", false, game) task.wait(0.1) VIM:SendKeyEvent(false, "E", false, game) end)
+        ClickMouse()
+        task.wait(0.3)
+    end
 end
 
--- ========== ENCONTRAR NPC ==========
+-- ========== ENCONTRAR NPC INIMIGO ==========
 local function FindNPC(nome)
     for _, obj in pairs(workspace:GetDescendants()) do
         if obj:IsA("Model") and obj ~= LP.Character then
             local hum = obj:FindFirstChild("Humanoid")
             local root = obj:FindFirstChild("HumanoidRootPart")
-            if hum and hum.Health > 0 and root and obj.Name:lower():find(nome:lower()) then
-                return obj, root
+            if hum and hum.Health > 0 and root then
+                if obj.Name:lower():find(nome:lower()) then
+                    return obj, root
+                end
             end
         end
     end
     return nil, nil
 end
 
--- ========== AUTO FARM ==========
+-- ========== AUTO FARM COMPLETO ==========
 local FarmTask = nil
+local CurrentNPC = nil
+local CurrentRoot = nil
 
 local function StartFarm()
     if AutoFarmOn then return end
@@ -121,24 +189,47 @@ local function StartFarm()
     
     FarmTask = spawn(function()
         while AutoFarmOn do
-            local npcNome, pos = GetNPCByLevel()
-            Teleport(pos)
-            wait(1)
+            -- Pega NPC correto baseado no nível
+            local npcNome, npcPos = GetNPCData()
             
+            -- Teleporta para a ilha do NPC
+            Teleport(npcPos)
+            task.wait(1)
+            
+            -- Aceita a missão
             AceitarQuest()
-            wait(1)
+            task.wait(1)
             
+            -- Encontra o NPC inimigo
             local npc, root = FindNPC(npcNome)
+            
             if npc and root then
-                local hrp = LP.Character and LP.Character:FindFirstChild("HumanoidRootPart")
+                CurrentNPC = npc
+                CurrentRoot = root
+                
+                -- Teleporta para o NPC
+                Teleport(root.CFrame * CFrame.new(0, 2, 3))
+                task.wait(0.5)
+                
+                -- Loop de ataque
                 local startTime = tick()
-                while npc and npc:FindFirstChild("Humanoid") and npc.Humanoid.Health > 0 and tick() - startTime < 20 do
-                    if hrp then hrp.CFrame = root.CFrame * CFrame.new(0, 2, 3) end
-                    Atacar()
-                    wait(0.1)
+                while AutoFarmOn and npc and npc.Parent and npc:FindFirstChild("Humanoid") and npc.Humanoid.Health > 0 and tick() - startTime < 30 do
+                    -- Mantém perto do NPC
+                    local hrp = LP.Character and LP.Character:FindFirstChild("HumanoidRootPart")
+                    if hrp and root and root.Parent then
+                        hrp.CFrame = root.CFrame * CFrame.new(0, 2, 3)
+                    end
+                    
+                    -- Ataca
+                    for i = 1, 5 do
+                        Atacar()
+                        task.wait(0.08)
+                    end
                 end
+            else
+                -- Se não encontrou, espera um pouco
+                task.wait(2)
             end
-            wait(1)
         end
     end)
 end
@@ -148,7 +239,7 @@ local function StopFarm()
     if FarmTask then task.cancel(FarmTask) FarmTask = nil end
 end
 
--- ========== HITBOX ==========
+-- ========== HITBOX (SOMENTE NPCs, SEU BONECO NORMAL) ==========
 local HitTask = nil
 local function ExpandHitbox()
     for _, obj in pairs(workspace:GetDescendants()) do
@@ -177,7 +268,7 @@ local function StopHitbox()
     if HitTask then HitTask:Disconnect() HitTask = nil end
 end
 
--- ========== SPEED ==========
+-- ========== SPEED E PULO ==========
 local function ApplySpeed()
     local char = LP.Character
     if char and char:FindFirstChild("Humanoid") then
@@ -205,16 +296,74 @@ local function StopSpeed()
     end
 end
 
--- ========== GUI SIMPLES E FUNCIONAL ==========
+-- ========== FLY (COM TWEEN - MAIS ESTÁVEL) ==========
+local FlyActive = false
+local FlyConnection = nil
+local FlySpeed = 100
+
+local function StartFly()
+    if FlyActive then return end
+    FlyActive = true
+    
+    local char = LP.Character
+    if not char then return end
+    local hum = char:FindFirstChild("Humanoid")
+    if hum then
+        hum.PlatformStand = true
+    end
+    
+    FlyConnection = RS.RenderStepped:Connect(function()
+        if not FlyActive then
+            if FlyConnection then FlyConnection:Disconnect() end
+            return
+        end
+        
+        local char = LP.Character
+        if not char then return end
+        local hrp = char:FindFirstChild("HumanoidRootPart")
+        if not hrp then return end
+        
+        local move = Vector3.new(
+            (UIS:IsKeyDown(Enum.KeyCode.D) and 1 or 0) - (UIS:IsKeyDown(Enum.KeyCode.A) and 1 or 0),
+            (UIS:IsKeyDown(Enum.KeyCode.Space) and 1 or 0) - (UIS:IsKeyDown(Enum.KeyCode.LeftControl) and 1 or 0),
+            (UIS:IsKeyDown(Enum.KeyCode.S) and -1 or 0) + (UIS:IsKeyDown(Enum.KeyCode.W) and 1 or 0)
+        )
+        
+        if move.Magnitude > 0 then
+            move = move.Unit
+        end
+        
+        local vel = (hrp.CFrame.RightVector * move.X + hrp.CFrame.UpVector * move.Y + hrp.CFrame.LookVector * move.Z) * FlySpeed
+        hrp.Velocity = vel
+    end)
+end
+
+local function StopFly()
+    FlyActive = false
+    if FlyConnection then FlyConnection:Disconnect() FlyConnection = nil end
+    local char = LP.Character
+    if char then
+        local hum = char:FindFirstChild("Humanoid")
+        if hum then
+            hum.PlatformStand = false
+        end
+        local hrp = char:FindFirstChild("HumanoidRootPart")
+        if hrp then
+            hrp.Velocity = Vector3.new(0, 0, 0)
+        end
+    end
+end
+
+-- ========== GUI ==========
 local sg = Instance.new("ScreenGui")
-sg.Name = "DogHub"
+sg.Name = "DogHubV14"
 sg.Parent = LP:WaitForChild("PlayerGui")
 
 local main = Instance.new("Frame")
-main.Size = UDim2.new(0, 350, 0, 400)
-main.Position = UDim2.new(0.5, -175, 0.5, -200)
+main.Size = UDim2.new(0, 380, 0, 480)
+main.Position = UDim2.new(0.5, -190, 0.5, -240)
 main.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
-main.BackgroundTransparency = 0.1
+main.BackgroundTransparency = 0.05
 main.BorderSizePixel = 0
 main.Parent = sg
 
@@ -227,32 +376,29 @@ local top = Instance.new("Frame")
 top.Size = UDim2.new(1, 0, 0, 50)
 top.BackgroundColor3 = Color3.fromRGB(79, 70, 229)
 top.BackgroundTransparency = 0.2
-top.BorderSizePixel = 0
 top.Parent = main
 
 local title = Instance.new("TextLabel")
 title.Size = UDim2.new(0.7, 0, 1, 0)
 title.Position = UDim2.new(0, 10, 0, 0)
 title.BackgroundTransparency = 1
-title.Text = "🐕 DOG HUB V13"
+title.Text = "🐕 DOG HUB V14 - CORRIGIDO"
 title.TextColor3 = Color3.fromRGB(255, 255, 255)
-title.TextSize = 20
+title.TextSize = 16
 title.Font = Enum.Font.GothamBold
 title.TextXAlignment = Enum.TextXAlignment.Left
 title.Parent = top
 
--- Fechar
 local close = Instance.new("TextButton")
-close.Size = UDim2.new(0, 30, 0, 30)
-close.Position = UDim2.new(1, -40, 0, 10)
+close.Size = UDim2.new(0, 32, 0, 32)
+close.Position = UDim2.new(1, -42, 0, 9)
 close.BackgroundColor3 = Color3.fromRGB(200, 60, 50)
 close.Text = "✕"
 close.TextColor3 = Color3.fromRGB(255, 255, 255)
-close.TextSize = 16
+close.TextSize = 18
 close.Font = Enum.Font.GothamBold
 close.Parent = top
 
--- Scroll
 local scroll = Instance.new("ScrollingFrame")
 scroll.Size = UDim2.new(1, 0, 1, -60)
 scroll.Position = UDim2.new(0, 0, 0, 55)
@@ -316,78 +462,39 @@ speedBtn.TextSize = 16
 speedBtn.Font = Enum.Font.GothamBold
 speedBtn.Parent = scroll
 
--- Slider Speed
-local speedFrame = Instance.new("Frame")
-speedFrame.Size = UDim2.new(0.94, 0, 0, 65)
-speedFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
-speedFrame.BackgroundTransparency = 0.5
-speedFrame.BorderSizePixel = 0
-speedFrame.Parent = scroll
-speedFrame.Visible = false
-
-local speedSlider = Instance.new("TextBox")
-speedSlider.Size = UDim2.new(0.9, 0, 0, 35)
-speedSlider.Position = UDim2.new(0.05, 0, 0, 25)
-speedSlider.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
-speedSlider.Text = tostring(WalkSpeed)
-speedSlider.TextColor3 = Color3.fromRGB(255, 255, 255)
-speedSlider.TextSize = 14
-speedSlider.Font = Enum.Font.Gotham
-speedSlider.Parent = speedFrame
-
--- Slider Pulo
-local jumpFrame = Instance.new("Frame")
-jumpFrame.Size = UDim2.new(0.94, 0, 0, 65)
-jumpFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
-jumpFrame.BackgroundTransparency = 0.5
-jumpFrame.BorderSizePixel = 0
-jumpFrame.Parent = scroll
-jumpFrame.Visible = false
-
-local jumpSlider = Instance.new("TextBox")
-jumpSlider.Size = UDim2.new(0.9, 0, 0, 35)
-jumpSlider.Position = UDim2.new(0.05, 0, 0, 25)
-jumpSlider.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
-jumpSlider.Text = tostring(JumpPower)
-jumpSlider.TextColor3 = Color3.fromRGB(255, 255, 255)
-jumpSlider.TextSize = 14
-jumpSlider.Font = Enum.Font.Gotham
-jumpSlider.Parent = jumpFrame
+-- Botão Fly
+local flyBtn = Instance.new("TextButton")
+flyBtn.Size = UDim2.new(0.94, 0, 0, 55)
+flyBtn.BackgroundColor3 = Color3.fromRGB(139, 92, 246)
+flyBtn.Text = "🕊️ ATIVAR FLY"
+flyBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+flyBtn.TextSize = 16
+flyBtn.Font = Enum.Font.GothamBold
+flyBtn.Parent = scroll
 
 -- Slider Hitbox
-local hitboxFrame = Instance.new("Frame")
-hitboxFrame.Size = UDim2.new(0.94, 0, 0, 65)
-hitboxFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
-hitboxFrame.BackgroundTransparency = 0.5
-hitboxFrame.BorderSizePixel = 0
-hitboxFrame.Parent = scroll
-hitboxFrame.Visible = false
-
 local hitboxSlider = Instance.new("TextBox")
-hitboxSlider.Size = UDim2.new(0.9, 0, 0, 35)
-hitboxSlider.Position = UDim2.new(0.05, 0, 0, 25)
+hitboxSlider.Size = UDim2.new(0.94, 0, 0, 40)
 hitboxSlider.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
-hitboxSlider.Text = tostring(TamanhoHitbox)
+hitboxSlider.Text = "Tamanho Hitbox: " .. TamanhoHitbox
 hitboxSlider.TextColor3 = Color3.fromRGB(255, 255, 255)
 hitboxSlider.TextSize = 14
 hitboxSlider.Font = Enum.Font.Gotham
-hitboxSlider.Parent = hitboxFrame
+hitboxSlider.Parent = scroll
+hitboxSlider.Visible = false
 
 -- Status
 local status = Instance.new("TextLabel")
-status.Size = UDim2.new(0.94, 0, 0, 30)
+status.Size = UDim2.new(0.94, 0, 0, 35)
 status.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
 status.BackgroundTransparency = 0.5
-status.Text = "✅ Pronto para farmar!"
+status.Text = "✅ Dog Hub V14 Pronto!"
 status.TextColor3 = Color3.fromRGB(100, 255, 100)
 status.TextSize = 12
 status.Font = Enum.Font.Gotham
 status.Parent = scroll
 
 -- ========== FUNÇÕES DOS BOTÕES ==========
-local hitboxVisivel = false
-local speedVisivel = false
-
 farmBtn.MouseButton1Click:Connect(function()
     if AutoFarmOn then
         StopFarm()
@@ -399,7 +506,7 @@ farmBtn.MouseButton1Click:Connect(function()
         StartFarm()
         farmBtn.Text = "⏸️ DESATIVAR FARM"
         farmBtn.BackgroundColor3 = Color3.fromRGB(239, 68, 68)
-        status.Text = "✅ Auto Farm ATIVADO! (Mouse fictício)"
+        status.Text = "✅ Auto Farm ATIVADO!"
         status.TextColor3 = Color3.fromRGB(100, 255, 100)
     end
 end)
@@ -409,14 +516,12 @@ hitBtn.MouseButton1Click:Connect(function()
         StopHitbox()
         hitBtn.Text = "🎯 ATIVAR HITBOX"
         hitBtn.BackgroundColor3 = Color3.fromRGB(79, 70, 229)
-        hitboxFrame.Visible = false
-        hitboxVisivel = false
+        hitboxSlider.Visible = false
     else
         StartHitbox()
         hitBtn.Text = "❌ DESATIVAR HITBOX"
         hitBtn.BackgroundColor3 = Color3.fromRGB(239, 68, 68)
-        hitboxFrame.Visible = true
-        hitboxVisivel = true
+        hitboxSlider.Visible = true
     end
 end)
 
@@ -425,48 +530,32 @@ speedBtn.MouseButton1Click:Connect(function()
         StopSpeed()
         speedBtn.Text = "⚡ ATIVAR SPEED"
         speedBtn.BackgroundColor3 = Color3.fromRGB(6, 182, 212)
-        speedFrame.Visible = false
-        jumpFrame.Visible = false
-        speedVisivel = false
     else
         StartSpeed()
         speedBtn.Text = "❌ DESATIVAR SPEED"
         speedBtn.BackgroundColor3 = Color3.fromRGB(239, 68, 68)
-        speedFrame.Visible = true
-        jumpFrame.Visible = true
-        speedVisivel = true
     end
 end)
 
-speedSlider.FocusLost:Connect(function()
-    local val = tonumber(speedSlider.Text)
-    if val then
-        WalkSpeed = math.clamp(val, 0, 300)
-        speedSlider.Text = tostring(WalkSpeed)
-        if SpeedOn then ApplySpeed() end
+flyBtn.MouseButton1Click:Connect(function()
+    if FlyActive then
+        StopFly()
+        flyBtn.Text = "🕊️ ATIVAR FLY"
+        flyBtn.BackgroundColor3 = Color3.fromRGB(139, 92, 246)
     else
-        speedSlider.Text = tostring(WalkSpeed)
-    end
-end)
-
-jumpSlider.FocusLost:Connect(function()
-    local val = tonumber(jumpSlider.Text)
-    if val then
-        JumpPower = math.clamp(val, 0, 300)
-        jumpSlider.Text = tostring(JumpPower)
-        if SpeedOn then ApplySpeed() end
-    else
-        jumpSlider.Text = tostring(JumpPower)
+        StartFly()
+        flyBtn.Text = "❌ DESATIVAR FLY"
+        flyBtn.BackgroundColor3 = Color3.fromRGB(239, 68, 68)
     end
 end)
 
 hitboxSlider.FocusLost:Connect(function()
-    local val = tonumber(hitboxSlider.Text)
+    local val = tonumber(hitboxSlider.Text:match("%d+"))
     if val then
         TamanhoHitbox = math.clamp(val, 8, 35)
-        hitboxSlider.Text = tostring(TamanhoHitbox)
+        hitboxSlider.Text = "Tamanho Hitbox: " .. TamanhoHitbox
     else
-        hitboxSlider.Text = tostring(TamanhoHitbox)
+        hitboxSlider.Text = "Tamanho Hitbox: " .. TamanhoHitbox
     end
 end)
 
@@ -474,6 +563,7 @@ close.MouseButton1Click:Connect(function()
     StopFarm()
     StopHitbox()
     StopSpeed()
+    StopFly()
     sg:Destroy()
 end)
 
@@ -510,6 +600,7 @@ spawn(function()
     end
 end)
 
-print("🐕 DOG HUB V13 CARREGADO!")
-print("✅ Mouse Fictício ativado!")
+print("🐕 DOG HUB V14 CARREGADO!")
+print("✅ Teleport corrigido (instantâneo)")
+print("✅ Click com múltiplos métodos")
 print("✅ Clique em ATIVAR AUTO FARM")
